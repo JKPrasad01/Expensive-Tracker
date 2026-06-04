@@ -3,10 +3,10 @@ spring:
     name: Expensive-Tracker
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/expense_tracker
+    url: jdbc:mysql://localhost:3306/expense_tracker?createDatabaseIfNotExist=true
     username: root
     password: root
-    driver-class-name: org.postgresql.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
