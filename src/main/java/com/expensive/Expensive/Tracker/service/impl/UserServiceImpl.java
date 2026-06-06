@@ -4,7 +4,9 @@ import com.expensive.Expensive.Tracker.dto.LoginUserDTO;
 import com.expensive.Expensive.Tracker.dto.ResponseDTO;
 import com.expensive.Expensive.Tracker.dto.UpdateProfileDTO;
 import com.expensive.Expensive.Tracker.dto.UserDTO;
+import com.expensive.Expensive.Tracker.entity.Role;
 import com.expensive.Expensive.Tracker.entity.User;
+import com.expensive.Expensive.Tracker.mapper.UserMapper;
 import com.expensive.Expensive.Tracker.repository.UserRepository;
 import com.expensive.Expensive.Tracker.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -17,20 +19,16 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
     @Override
     public ResponseDTO signup(UserDTO userDto) {
         try{
-            if(userRepository.existByEmail(userDto.getEmail()) || userRepository.existByPhone(userDto.getPhone())){
+            if(userRepository.existsByEmail(userDto.getEmail()) || userRepository.existsByPhone(userDto.getPhone())){
                 return new ResponseDTO("failed", HttpStatus.CONFLICT, "user already exists");
             }
 
-            User user = new User();
-
-            user.setFullName(userDto.getFullName());
-            user.setEmail(userDto.getEmail());
-            user.setPassword(userDto.getPassword());
-            user.setPhone(userDto.getPhone());
+            User user=userMapper.dtoToUser(userDto);
 
             userRepository.save(user);
 
