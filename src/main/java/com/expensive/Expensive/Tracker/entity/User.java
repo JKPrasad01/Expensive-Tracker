@@ -1,6 +1,8 @@
 package com.expensive.Expensive.Tracker.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,23 +14,28 @@ import org.hibernate.annotations.ColumnDefault;
 @Builder
 @NoArgsConstructor
 @Data
+@Table(name = "users")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    @Column(nullable = false)
+    @Column()
+    @NotBlank
     private String fullName;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true )
+    @NotBlank
     private String email;
 
     @Column(nullable = false)
+    @NotBlank
     private String password;
 
-    @Column(nullable = false)
-    private long phone;
+    @Column(unique = true)
+    @NotBlank
+    private String phone;
 
     @ColumnDefault("1")
     private boolean isActive;
