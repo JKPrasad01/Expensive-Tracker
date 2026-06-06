@@ -38,7 +38,4 @@ public class User {
 
     @ColumnDefault("1")
     private boolean isActive;
-
-    @NotBlank
-    private long role;
 }

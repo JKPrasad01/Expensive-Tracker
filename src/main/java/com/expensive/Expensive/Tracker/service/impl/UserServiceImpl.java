@@ -21,11 +21,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public ResponseDTO signup(UserDTO userDto) {
         try{
-
-            Optional<User> emailExists = Optional.ofNullable(userRepository.findByEmail(userDto.getEmail()));
-            Optional<User> phoneExists = Optional.ofNullable(userRepository.findByPhone(userDto.getPhone()));
-
-            if(emailExists.isPresent() || phoneExists.isPresent()){
+            if(userRepository.existByEmail(userDto.getEmail()) || userRepository.existByPhone(userDto.getPhone())){
                 return new ResponseDTO("failed", HttpStatus.CONFLICT, "user already exists");
             }
 
@@ -35,7 +31,6 @@ public class UserServiceImpl implements UserService {
             user.setEmail(userDto.getEmail());
             user.setPassword(userDto.getPassword());
             user.setPhone(userDto.getPhone());
-            user.setRole(userDto.getRole());
 
             userRepository.save(user);
 
