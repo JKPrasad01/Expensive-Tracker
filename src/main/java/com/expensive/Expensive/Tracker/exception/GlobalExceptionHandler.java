@@ -7,8 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -18,14 +16,26 @@ public class GlobalExceptionHandler {
             RoleNotFoundException ex,
             HttpServletRequest request){
 
-        ErrorResponse errorResponse = ErrorResponse
-                .builder()
+        ErrorResponse errorResponse = ErrorResponse.builder()
                 .message(ex.getMessage())
-                .localDateTime(LocalDateTime.now())
                 .statusCode(HttpStatus.NOT_FOUND.value())
                 .path(request.getRequestURI())
                 .build();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    @ExceptionHandler(RoleAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleRoleAlreadyExistsException(
+            RoleAlreadyExistsException ex,
+            HttpServletRequest httpServletRequest){
+
+        ErrorResponse errorResponse=ErrorResponse.builder()
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.CONFLICT.value())
+                .path(httpServletRequest.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
 

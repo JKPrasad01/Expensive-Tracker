@@ -25,17 +25,18 @@ public class UserServiceImpl implements UserService {
     public ResponseDTO signup(UserDTO userDto) {
         try{
             if(userRepository.existsByEmail(userDto.getEmail()) || userRepository.existsByPhone(userDto.getPhone())){
-                return new ResponseDTO("failed", HttpStatus.CONFLICT, "user already exists");
+//                return new ResponseDTO("failed", HttpStatus.CONFLICT, "user already exists");
             }
 
             User user=userMapper.dtoToUser(userDto);
 
             userRepository.save(user);
 
-            return new ResponseDTO("success", HttpStatus.CREATED, "signup successfully.");
+//            return new ResponseDTO("success", HttpStatus.CREATED, "signup successfully.");
         }catch(Exception exception){
-            return new ResponseDTO("failed",HttpStatus.BAD_REQUEST,exception.getMessage());
+//            return new ResponseDTO("failed",HttpStatus.BAD_REQUEST,exception.getMessage());
         }
+        return null;
     }
 
     @Override

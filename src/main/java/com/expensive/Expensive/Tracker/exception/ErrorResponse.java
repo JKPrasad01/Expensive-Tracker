@@ -11,6 +11,7 @@ public class ErrorResponse {
 
     private String message;
     private int statusCode;
-    private LocalDateTime localDateTime;
+    @Builder.Default
+    private LocalDateTime localDateTime=LocalDateTime.now();
     private String path;
 }
