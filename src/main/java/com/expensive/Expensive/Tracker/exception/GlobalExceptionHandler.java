@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(errorResponse);
     }
-}
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExistsException(
             UserAlreadyExistsException ex,
@@ -58,6 +58,6 @@ public class GlobalExceptionHandler {
                 .statusCode(HttpStatus.CONFLICT.value())
                 .path(httpServletRequest.getRequestURI())
                 .build();
-    return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 }
