@@ -39,6 +39,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
+    @ExceptionHandler(ResourceKeyNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceKeyNotFoundException(
+            ResourceKeyNotFoundException ex,
+            HttpServletRequest request){
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExistsException(
             UserAlreadyExistsException ex,
