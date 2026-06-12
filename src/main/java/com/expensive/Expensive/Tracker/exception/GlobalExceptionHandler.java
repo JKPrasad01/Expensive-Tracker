@@ -49,6 +49,6 @@ public class GlobalExceptionHandler {
                 .statusCode(HttpStatus.CONFLICT.value())
                 .path(httpServletRequest.getRequestURI())
                 .build();
-    return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 }
