@@ -32,7 +32,7 @@ public class ActionServiceImpl implements ActionService {
 
         String actionKey = generateActionKey(actionName);
 
-        if (actionRepository.existsByActionKey(actionKey)) {
+        if (actionRepository.existsByActionKeyIgnoreCase(actionKey)) {
             throw new ActionAlreadyExistsException(
                 "Action already exists with key: " + actionKey);
         }
