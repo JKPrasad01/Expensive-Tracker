@@ -28,7 +28,7 @@ public class Action {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Long id;
 
     @Column(name = "action_key", nullable = false, unique = true, length = 50, updatable = false)
     private String actionKey;

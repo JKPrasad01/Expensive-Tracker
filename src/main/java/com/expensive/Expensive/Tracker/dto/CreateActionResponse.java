@@ -1,3 +1,5 @@
+package com.expensive.Expensive.Tracker.dto;
+
 import lombok.Data;
 
 @Data
