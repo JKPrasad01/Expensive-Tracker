@@ -45,11 +45,33 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ResponseDTO login(LoginUserDTO loginUserDTO) {
-        return null;
+        Optional<User> userExists = userRepository.findByEmail(loginUserDTO.getEmail());
+        if(userExists.isEmpty()){
+            return ResponseDTO.builder()
+                    .status(HttpStatus.NOT_FOUND)
+                    .message("User not found, invalid email.")
+                    .build();
+        }
+        User userInfo = userExists.get();
+        if(!userInfo.getPassword().equals(loginUserDTO.getPassword())){
+            return ResponseDTO.builder()
+                    .status(HttpStatus.BAD_REQUEST)
+                    .message("Incorrect password")
+                    .build();
+        }
+
+        String token = jwtService.generateToken(userInfo.getEmail(),userInfo.getId());
+
+        return ResponseDTO.builder()
+                .status(HttpStatus.OK)
+                .message("Logged in successfully")
+                .data(token)
+                .build();
     }
 
     @Override
     public ResponseDTO updateProfile(UpdateProfileDTO updateProfileDTO, long userId) {
+        return null;
         Optional<User> userExists = userRepository.findById(userId);
         if(!userExists.isEmpty()){
             return ResponseDTO.builder()
