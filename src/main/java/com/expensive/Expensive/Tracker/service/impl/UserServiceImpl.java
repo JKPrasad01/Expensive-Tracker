@@ -71,7 +71,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ResponseDTO updateProfile(UpdateProfileDTO updateProfileDTO, long userId) {
-        return null;
         Optional<User> userExists = userRepository.findById(userId);
         if(!userExists.isEmpty()){
             return ResponseDTO.builder()
