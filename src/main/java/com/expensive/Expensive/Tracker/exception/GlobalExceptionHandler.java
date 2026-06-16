@@ -33,18 +33,17 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getMessage(), HttpStatus.CONFLICT, request);
     }
 
-    private ResponseEntity<ErrorResponse> buildErrorResponse(
-            String message,
-            HttpStatus status,
-            HttpServletRequest request) {
+    @ExceptionHandler(ResourceNameAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNameAlreadyExistsException(
+            ResourceNameAlreadyExistsException ex,
+            HttpServletRequest request){
 
         ErrorResponse errorResponse = ErrorResponse.builder()
-                .message(message)
-                .statusCode(status.value())
+                .message(ex.getMessage())
+                .statusCode(HttpStatus.CONFLICT.value())
                 .path(request.getRequestURI())
                 .build();
-
-        return ResponseEntity.status(status).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
     }
 
     @ExceptionHandler(ResourceKeyNotFoundException.class)
@@ -71,5 +70,21 @@ public class GlobalExceptionHandler {
                 .path(httpServletRequest.getRequestURI())
                 .build();
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+
+
+    private ResponseEntity<ErrorResponse> buildErrorResponse(
+            String message,
+            HttpStatus status,
+            HttpServletRequest request) {
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .message(message)
+                .statusCode(status.value())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(status).body(errorResponse);
     }
 }
