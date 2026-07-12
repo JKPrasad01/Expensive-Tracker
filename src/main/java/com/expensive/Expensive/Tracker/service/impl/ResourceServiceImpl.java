@@ -12,6 +12,7 @@ import com.expensive.Expensive.Tracker.repository.ResourceRepository;
 import com.expensive.Expensive.Tracker.service.ResourceService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -23,11 +24,15 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ResourceServiceImpl implements ResourceService {
+
     private final ResourceRepository resourceRepository;
     private final ResourceMapper resourceMapper;
 
     @Override
+    @Transactional
     public ResponseDTO<ResourceCreateResponse> createResource(ResourceCreateRequest request) {
+
+        validateResourceName(request.getResourceName());
 
         Resource parent = null;
 
@@ -37,28 +42,28 @@ public class ResourceServiceImpl implements ResourceService {
                             new ResourceNotFoundException("Parent resource not found"));
         }
 
-        String resourceKey = generateResourceKey(
-                request.getResourceName(),
-                parent
-        );
+        String resourceKey = generateResourceKey(request.getResourceName(), parent);
 
         if (resourceRepository.existsByResourceKeyEqualsIgnoreCase(resourceKey)) {
-            throw new ResourceNameAlreadyExistsException(
-                    "Resource key already exists");
+            throw new ResourceNameAlreadyExistsException("Resource key already exists");
         }
 
         Resource resource = new Resource();
-
-        resource.setResourceName(request.getResourceName());
+        resource.setResourceName(request.getResourceName().trim());
         resource.setDisplayOrder(request.getDisplayOrder());
         resource.setPath(request.getPath());
         resource.setResourceType(request.getResourceType());
-
         resource.initiateKey(resourceKey);
-
         resource.setParent(parent);
 
-        Resource savedResource = resourceRepository.save(resource);
+        Resource savedResource;
+        try {
+            savedResource = resourceRepository.save(resource);
+        } catch (DataIntegrityViolationException e) {
+            // Backstop for a race where two concurrent requests both pass
+            // the exists() check above before either commits.
+            throw new ResourceNameAlreadyExistsException("Resource key already exists");
+        }
 
         return ResponseDTO.<ResourceCreateResponse>builder()
                 .data(resourceMapper.toCreateResponse(savedResource))
@@ -68,10 +73,10 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
 
-    @Transactional
     @Override
+    @Transactional
     public ResponseDTO<List<ResourceCreateResponse>> createBulkResources(
-            Set<ResourceCreateRequest> requests) {
+            List<ResourceCreateRequest> requests) {
 
         if (requests == null || requests.isEmpty()) {
             return ResponseDTO.<List<ResourceCreateResponse>>builder()
@@ -80,6 +85,8 @@ public class ResourceServiceImpl implements ResourceService {
                     .message("No resources to process")
                     .build();
         }
+
+        requests.forEach(r -> validateResourceName(r.getResourceName()));
 
         // Load parents
         Set<Long> parentIds = requests.stream()
@@ -90,91 +97,88 @@ public class ResourceServiceImpl implements ResourceService {
         Map<Long, Resource> parentMap = resourceRepository
                 .findAllById(parentIds)
                 .stream()
-                .collect(Collectors.toMap(
-                        Resource::getId,
-                        Function.identity()
-                ));
+                .collect(Collectors.toMap(Resource::getId, Function.identity()));
 
-        // Validate parent ids
         Set<Long> missingParentIds = parentIds.stream()
                 .filter(id -> !parentMap.containsKey(id))
                 .collect(Collectors.toSet());
 
         if (!missingParentIds.isEmpty()) {
-            throw new ResourceNotFoundException(
-                    "Parent resources not found: " + missingParentIds
-            );
+            throw new ResourceNotFoundException("Parent resources not found: " + missingParentIds);
         }
 
-        // Generate all resource keys
-        Map<ResourceCreateRequest, String> requestKeyMap =
-                requests.stream()
-                        .collect(Collectors.toMap(
-                                Function.identity(),
-                                request -> {
+        // Generate keys for every request (index-based, not identity-based,
+        // so duplicate-looking requests in the input list are never silently dropped)
+        List<String> resourceKeys = requests.stream()
+                .map(request -> {
+                    Resource parent = request.getParentId() == null
+                            ? null
+                            : parentMap.get(request.getParentId());
+                    return generateResourceKey(request.getResourceName(), parent);
+                })
+                .toList();
 
-                                    Resource parent =
-                                            request.getParentId() == null
-                                                    ? null
-                                                    : parentMap.get(request.getParentId());
+        // Reject duplicate keys within the same batch (e.g. two siblings that
+        // resolve to the same generated key) before touching the DB
+        Set<String> seen = new HashSet<>();
+        Set<String> duplicatesInBatch = resourceKeys.stream()
+                .filter(k -> !seen.add(k))
+                .collect(Collectors.toSet());
 
-                                    return generateResourceKey(
-                                            request.getResourceName(),
-                                            parent
-                                    );
-                                }
-                        ));
+        if (!duplicatesInBatch.isEmpty()) {
+            throw new ResourceNameAlreadyExistsException(
+                    "Duplicate resource keys within request batch: " + duplicatesInBatch);
+        }
 
-        Set<String> resourceKeys =
-                new HashSet<>(requestKeyMap.values());
+        // Reject any key that already exists in the DB — bulk create never upserts
+        Set<String> alreadyExisting = resourceRepository.findByResourceKeyIn(new HashSet<>(resourceKeys))
+                .stream()
+                .map(Resource::getResourceKey)
+                .collect(Collectors.toSet());
 
-        // Load existing resources in single query
-        Map<String, Resource> existingResources =
-                resourceRepository.findByResourceKeyIn(resourceKeys)
-                        .stream()
-                        .collect(Collectors.toMap(
-                                Resource::getResourceKey,
-                                Function.identity()
-                        ));
+        if (!alreadyExisting.isEmpty()) {
+            throw new ResourceNameAlreadyExistsException(
+                    "Resource keys already exist: " + alreadyExisting);
+        }
 
         List<Resource> resourcesToSave = new ArrayList<>();
 
-        for (ResourceCreateRequest request : requests) {
+        for (int i = 0; i < requests.size(); i++) {
 
-            String resourceKey = requestKeyMap.get(request);
+            ResourceCreateRequest request = requests.get(i);
+            String resourceKey = resourceKeys.get(i);
 
-            Resource resource =
-                    existingResources.get(resourceKey);
+            Resource parent = request.getParentId() == null
+                    ? null
+                    : parentMap.get(request.getParentId());
 
-            if (resource == null) {
-                resource = new Resource();
-                resource.initiateKey(resourceKey);
-            }
-
-            Resource parent =
-                    request.getParentId() == null
-                            ? null
-                            : parentMap.get(request.getParentId());
-
-            resource.setResourceName(request.getResourceName());
+            Resource resource = new Resource();
+            resource.setResourceName(request.getResourceName().trim());
             resource.setDisplayOrder(request.getDisplayOrder());
             resource.setPath(request.getPath());
             resource.setResourceType(request.getResourceType());
+            resource.initiateKey(resourceKey);
             resource.setParent(parent);
 
             resourcesToSave.add(resource);
         }
 
-        List<ResourceCreateResponse> responses =
-                resourceRepository.saveAll(resourcesToSave)
-                        .stream()
-                        .map(resourceMapper::toCreateResponse)
-                        .toList();
+        List<ResourceCreateResponse> responses;
+        try {
+            responses = resourceRepository.saveAll(resourcesToSave)
+                    .stream()
+                    .map(resourceMapper::toCreateResponse)
+                    .toList();
+        } catch (DataIntegrityViolationException e) {
+            // Backstop for a race between the existence check above and this save.
+            throw new ResourceNameAlreadyExistsException(
+                    "One or more resource keys already exist (concurrent creation)");
+        }
 
         return ResponseDTO.<List<ResourceCreateResponse>>builder()
                 .data(responses)
                 .status(HttpStatus.CREATED)
-                .message("Resources processed successfully")
+                .message("Resources created successfully")
                 .build();
     }
 
@@ -186,44 +190,34 @@ public class ResourceServiceImpl implements ResourceService {
 
         Map<Long, ResourceHierarchyResponse> resourceMap = new HashMap<>();
 
-        // First pass: create DTOs
         for (Resource resource : resources) {
-
-            ResourceHierarchyResponse dto =
-                    new ResourceHierarchyResponse();
-
+            ResourceHierarchyResponse dto = new ResourceHierarchyResponse();
             dto.setId(resource.getId());
             dto.setResourceName(resource.getResourceName());
             dto.setResourceKey(resource.getResourceKey());
             dto.setPath(resource.getPath());
             dto.setDisplayOrder(resource.getDisplayOrder());
             dto.setResourceType(resource.getResourceType());
-
             resourceMap.put(resource.getId(), dto);
         }
 
         List<ResourceHierarchyResponse> roots = new ArrayList<>();
 
-        // Second pass: build hierarchy
         for (Resource resource : resources) {
 
-            ResourceHierarchyResponse current =
-                    resourceMap.get(resource.getId());
+            ResourceHierarchyResponse current = resourceMap.get(resource.getId());
 
             if (resource.getParent() == null) {
                 roots.add(current);
                 continue;
             }
 
-            ResourceHierarchyResponse parent =
-                    resourceMap.get(resource.getParent().getId());
-
+            ResourceHierarchyResponse parent = resourceMap.get(resource.getParent().getId());
             if (parent != null) {
                 parent.getChildren().add(current);
             }
         }
 
-        // Sort recursively
         sortChildren(roots);
 
         return ResponseDTO.<List<ResourceHierarchyResponse>>builder()
@@ -234,13 +228,20 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
 
-    private String generateResourceKey(
-            String resourceName,
-            Resource parent) {
+    private void validateResourceName(String resourceName) {
+        if (resourceName == null || resourceName.isBlank()) {
+            throw new IllegalArgumentException("Resource name is required");
+        }
+    }
 
-        String currentKey = resourceName.trim()
+    private String generateResourceKey(String resourceName, Resource parent) {
+
+        String currentKey = resourceName
+                .trim()
                 .toUpperCase()
-                .replace(" ", "_");
+                .replaceAll("[^A-Z0-9\\s]", "")
+                .trim()
+                .replaceAll("\\s+", "_");
 
         if (parent == null) {
             return currentKey;
@@ -250,18 +251,15 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
 
-    private void sortChildren(
-            List<ResourceHierarchyResponse> resources) {
+    private void sortChildren(List<ResourceHierarchyResponse> resources) {
 
-        resources.sort(
-                Comparator.comparing(
-                        ResourceHierarchyResponse::getDisplayOrder
-                )
-        );
+        resources.sort(Comparator.comparing(
+                ResourceHierarchyResponse::getDisplayOrder,
+                Comparator.nullsLast(Comparator.naturalOrder())
+        ));
 
         for (ResourceHierarchyResponse resource : resources) {
             sortChildren(resource.getChildren());
         }
     }
-
 }

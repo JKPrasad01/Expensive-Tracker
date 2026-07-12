@@ -1,16 +1,17 @@
 package com.expensive.Expensive.Tracker.service.impl;
 
 import com.expensive.Expensive.Tracker.dto.CreateActionRequest;
+import com.expensive.Expensive.Tracker.dto.CreateActionResponse;
 import com.expensive.Expensive.Tracker.dto.ResponseDTO;
 import com.expensive.Expensive.Tracker.entity.Action;
+import com.expensive.Expensive.Tracker.exception.ActionAlreadyExistsException;
+import com.expensive.Expensive.Tracker.mapper.ActionMapper;
 import com.expensive.Expensive.Tracker.repository.ActionRepository;
 import com.expensive.Expensive.Tracker.service.ActionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import com.expensive.Expensive.Tracker.dto.CreateActionResponse;
-import com.expensive.Expensive.Tracker.mapper.ActionMapper;
-import com.expensive.Expensive.Tracker.exception.ActionAlreadyExistsException;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -34,30 +35,39 @@ public class ActionServiceImpl implements ActionService {
 
         if (actionRepository.existsByActionKeyIgnoreCase(actionKey)) {
             throw new ActionAlreadyExistsException(
-                "Action already exists with key: " + actionKey);
+                    "Action already exists with key: " + actionKey);
         }
 
         Action action = actionMapper.createActionRequestToEntity(request);
         action.setActionName(actionName);
         action.initializeKey(actionKey);
 
-        Action savedAction = actionRepository.save(action);
+        Action savedAction;
+        try {
+            savedAction = actionRepository.save(action);
+        } catch (DataIntegrityViolationException e) {
+            // Backstop for a race where two concurrent requests both pass
+            // the exists() checks above before either commits.
+            throw new ActionAlreadyExistsException(
+                    "Action already exists with name or key: " + actionName);
+        }
 
         CreateActionResponse response =
-            actionMapper.entityToCreateActionResponse(savedAction);
+                actionMapper.entityToCreateActionResponse(savedAction);
 
         return ResponseDTO.<CreateActionResponse>builder()
-            .status(HttpStatus.CREATED)
-            .message("Action created successfully")
-            .data(response)
-            .build();
+                .status(HttpStatus.CREATED)
+                .message("Action created successfully")
+                .data(response)
+                .build();
     }
 
-    
     private String generateActionKey(String actionName) {
         return actionName
                 .trim()
                 .toUpperCase()
-                .replace(" ", "_");
+                .replaceAll("[^A-Z0-9\\s]", "")
+                .trim()
+                .replaceAll("\\s+", "_");
     }
 }
