@@ -1,0 +1,16 @@
+package com.expensetracker.repository;
+
+import com.expensetracker.entity.Role;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface RoleRepository extends JpaRepository<Role,Integer> {
+
+    boolean existsByRoleKey(String roleKey);
+
+    Optional<Role> findByRoleKey(String roleKey);
+
+}
