@@ -6,7 +6,6 @@ import com.expensive.Expensive.Tracker.dto.resource.ResourceCreateResponse;
 import com.expensive.Expensive.Tracker.dto.resource.ResourceHierarchyResponse;
 
 import java.util.List;
-import java.util.Set;
 
 public interface ResourceService {
 
@@ -14,7 +13,7 @@ public interface ResourceService {
             ResourceCreateRequest request);
 
     ResponseDTO<List<ResourceCreateResponse>> createBulkResources(
-            Set<ResourceCreateRequest> requests);
+            List<ResourceCreateRequest> requests);
 
     ResponseDTO<List<ResourceHierarchyResponse>> getResourceHierarchy();
 }
